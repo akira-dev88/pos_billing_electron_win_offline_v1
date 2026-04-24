@@ -7,16 +7,17 @@ export class UserModel {
   // ==================== Basic CRUD Operations ====================
 
   // Create user
+  // Create user
   static create(user: Omit<User, 'created_at' | 'updated_at'>): User {
     const uuid = user.user_uuid || uuidv4();
-    const hashedPassword = user.password ? bcrypt.hashSync(user.password, 10) : user.password;
 
     const stmt = db.prepare(`
-      INSERT INTO users (user_uuid, name, email, password, role)
-      VALUES (?, ?, ?, ?, ?)
-    `);
+    INSERT INTO users (user_uuid, name, email, password, role)
+    VALUES (?, ?, ?, ?, ?)
+  `);
 
-    stmt.run(uuid, user.name, user.email, hashedPassword, user.role);
+    // Use password directly without re-hashing
+    stmt.run(uuid, user.name, user.email, user.password, user.role);
 
     return this.findByEmail(user.email)!;
   }
@@ -261,7 +262,7 @@ export class UserModel {
     if (!user) return false;
 
     const hashedPassword = bcrypt.hashSync(newPassword, 10);
-    
+
     const result = db.prepare(`
       UPDATE users 
       SET password = ?, updated_at = CURRENT_TIMESTAMP 
