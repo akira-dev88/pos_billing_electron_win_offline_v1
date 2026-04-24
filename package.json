@@ -8,7 +8,7 @@
     "backend": "tsx watch server/src/index.ts",
     "frontend": "vite",
     "electron": "electron .",
-    "dev": "concurrently -n BACK,FRONT,ELEC -c blue,green,yellow \"npm run backend\" \"npm run frontend\" \"wait-on http://localhost:5173 && wait-on http://localhost:3000/health && npm run electron\"",
+    "dev": "concurrently -n BACK,FRONT,ELEC -c blue,green,yellow \"npm run backend\" \"npm run frontend\" \"wait-on http://localhost:5173 && wait-on http://127.0.0.1:8000/health && npm run electron\"",
     "build": "tsc -b && vite build",
     "lint": "eslint .",
     "preview": "vite preview"
