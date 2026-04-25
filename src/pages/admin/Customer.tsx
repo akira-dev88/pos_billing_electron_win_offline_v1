@@ -19,10 +19,7 @@ import {
   alertCircleOutline,
   checkmarkCircleOutline,
   timeOutline,
-  walletOutline,
   callOutline,
-  locationOutline,
-  documentTextOutline,
   searchOutline,
 } from "ionicons/icons";
 
@@ -32,6 +29,7 @@ export default function CustomerPage() {
   const [editing, setEditing] = useState<any | null>(null);
   const [showForm, setShowForm] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
+  const [loading, setLoading] = useState(true);
 
   const [form, setForm] = useState({
     name: "",
@@ -52,23 +50,53 @@ export default function CustomerPage() {
 
   const loadCustomers = async () => {
     try {
+      setLoading(true);
       const data = await getCustomers();
+      console.log("✅ Customers data loaded:", data);
       setCustomers(Array.isArray(data) ? data : []);
     } catch (e) {
-      console.error(e);
+      console.error("Error loading customers:", e);
+      setCustomers([]);
+    } finally {
+      setLoading(false);
     }
   };
 
   const loadInsights = async () => {
     try {
-      const [agingData, reminderData] = await Promise.all([
+      const [agingResponse, reminderResponse] = await Promise.all([
         apiGet("/customers/aging"),
         apiGet("/customers/reminders"),
       ]);
-      setAging(Array.isArray(agingData) ? agingData : []);
-      setReminders(Array.isArray(reminderData) ? reminderData : []);
+      
+      console.log("📊 Aging Response:", agingResponse);
+      console.log("📊 Reminders Response:", reminderResponse);
+      
+      // Extract data from responses
+      let agingData = [];
+      if (agingResponse.success && agingResponse.data) {
+        agingData = agingResponse.data;
+      } else if (agingResponse.data && Array.isArray(agingResponse.data)) {
+        agingData = agingResponse.data;
+      } else if (Array.isArray(agingResponse)) {
+        agingData = agingResponse;
+      }
+      
+      let reminderData = [];
+      if (reminderResponse.success && reminderResponse.data) {
+        reminderData = reminderResponse.data;
+      } else if (reminderResponse.data && Array.isArray(reminderResponse.data)) {
+        reminderData = reminderResponse.data;
+      } else if (Array.isArray(reminderResponse)) {
+        reminderData = reminderResponse;
+      }
+      
+      setAging(agingData);
+      setReminders(reminderData);
     } catch (e) {
       console.error("Insights error:", e);
+      setAging([]);
+      setReminders([]);
     }
   };
 
@@ -91,14 +119,13 @@ export default function CustomerPage() {
 
     try {
       if (editing) {
-        const updated = await updateCustomer(editing.customer_uuid, form);
-        setCustomers((prev) =>
-          prev.map((c) => (c.customer_uuid === updated.customer_uuid ? updated : c))
-        );
+        await updateCustomer(editing.customer_uuid, form);
+        alert("Customer updated successfully");
       } else {
-        const created = await createCustomer(form);
-        setCustomers((prev) => [created, ...prev]);
+        await createCustomer(form);
+        alert("Customer created successfully");
       }
+      await loadCustomers(); // Reload the list
       resetForm();
     } catch (e) {
       console.error(e);
@@ -122,17 +149,23 @@ export default function CustomerPage() {
   // ❌ DELETE
   const handleDelete = async (uuid: string) => {
     if (!confirm("Delete customer?")) return;
-    await deleteCustomer(uuid);
-    setCustomers((prev) => prev.filter((c) => c.customer_uuid !== uuid));
+    try {
+      await deleteCustomer(uuid);
+      alert("Customer deleted successfully");
+      await loadCustomers(); // Reload the list
+    } catch (e) {
+      console.error("Delete failed:", e);
+      alert("Delete failed");
+    }
   };
 
   // Filter customers
   const filteredCustomers = customers.filter((c) =>
-    c.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    c.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
     c.mobile?.includes(searchTerm)
   );
 
-  // Stats - Fixed version with proper number handling
+  // Stats
   const totalCustomers = customers.length;
   const totalCredit = customers.reduce((sum, c) => {
     const credit = typeof c.credit_balance === 'number' ? c.credit_balance : Number(c.credit_balance) || 0;
@@ -148,12 +181,24 @@ export default function CustomerPage() {
     return balance === 0;
   }).length;
 
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-96">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto mb-4"></div>
+          <p className="text-white">Loading customers...</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6">
       {/* Header */}
       <div className="flex justify-between items-center">
         <div>
           <h1 className="text-3xl font-bold text-white">Customers</h1>
+          <p className="text-gray-300 text-sm mt-1">Manage your customer relationships</p>
         </div>
         <button
           onClick={() => {
@@ -186,7 +231,7 @@ export default function CustomerPage() {
             <div>
               <p className="text-purple-100 text-sm">Total Credit Outstanding</p>
               <p className="text-2xl font-bold mt-1">
-                ₹{typeof totalCredit === 'number' ? totalCredit.toLocaleString() : '0'}
+                ₹{totalCredit.toLocaleString()}
               </p>
             </div>
             <div className="bg-white/20 p-2 rounded-lg">
@@ -234,8 +279,7 @@ export default function CustomerPage() {
 
       {/* Main Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-
-        {/* Right Column - Insights */}
+        {/* Left Column - Insights */}
         <div className="space-y-6">
           {/* Credit Aging */}
           <div className="bg-white rounded-2xl shadow-lg p-5">
@@ -256,19 +300,19 @@ export default function CustomerPage() {
                     <div className="grid grid-cols-4 gap-1 text-xs">
                       <div className="text-center p-1 bg-gray-50 rounded">
                         <div className="text-gray-400">0-30</div>
-                        <div className="font-semibold text-gray-700">₹{c.aging["0_30"]}</div>
+                        <div className="font-semibold text-gray-700">₹{c.aging?.["0_30"] || 0}</div>
                       </div>
                       <div className="text-center p-1 bg-gray-50 rounded">
                         <div className="text-gray-400">31-60</div>
-                        <div className="font-semibold text-gray-700">₹{c.aging["31_60"]}</div>
+                        <div className="font-semibold text-gray-700">₹{c.aging?.["31_60"] || 0}</div>
                       </div>
                       <div className="text-center p-1 bg-gray-50 rounded">
                         <div className="text-gray-400">61-90</div>
-                        <div className="font-semibold text-gray-700">₹{c.aging["61_90"]}</div>
+                        <div className="font-semibold text-gray-700">₹{c.aging?.["61_90"] || 0}</div>
                       </div>
                       <div className="text-center p-1 bg-red-50 rounded">
                         <div className="text-gray-400">90+</div>
-                        <div className="font-semibold text-red-600">₹{c.aging["90_plus"]}</div>
+                        <div className="font-semibold text-red-600">₹{c.aging?.["90_plus"] || 0}</div>
                       </div>
                     </div>
                   </div>
@@ -278,12 +322,12 @@ export default function CustomerPage() {
           </div>
 
           {/* Payment Reminders */}
-          <div className="bg-white rounded-2xl shadow-lg p-5 ">
+          <div className="bg-white rounded-2xl shadow-lg p-5">
             <div className="flex items-center gap-2 mb-4">
-              <div className="p-2 bg-red-200 rounded-lg">
+              <div className="p-2 bg-red-100 rounded-lg">
                 <IonIcon icon={alertCircleOutline} className="text-red-600 text-lg" />
               </div>
-              <h2 className="font-semibold text-red-500">Payment Reminders</h2>
+              <h2 className="font-semibold text-gray-800">Payment Reminders</h2>
             </div>
 
             {reminders.length === 0 ? (
@@ -294,13 +338,13 @@ export default function CustomerPage() {
             ) : (
               <div className="space-y-2">
                 {reminders.slice(0, 5).map((r: any, i) => (
-                  <div key={i} className="flex justify-between items-center p-3 bg-white rounded-xl shadow-sm">
+                  <div key={i} className="flex justify-between items-center p-3 bg-gray-50 rounded-xl">
                     <div>
                       <div className="font-medium text-gray-800">{r.name}</div>
                       <div className="text-xs text-red-500">{r.days} days overdue</div>
                     </div>
                     <div className="text-right">
-                      <div className="font-bold text-red-600">₹{r.due}</div>
+                      <div className="font-bold text-red-600">₹{r.due || 0}</div>
                     </div>
                   </div>
                 ))}
@@ -313,8 +357,9 @@ export default function CustomerPage() {
         <div className="lg:col-span-2 bg-white rounded-2xl shadow-lg overflow-hidden">
           <div className="p-4 border-b border-gray-100 bg-gray-50">
             <h2 className="font-semibold text-gray-800">Customer List</h2>
+            <p className="text-xs text-gray-500 mt-1">{filteredCustomers.length} customers found</p>
           </div>
-          <div className="divide-y divide-gray-100 max-h-[500px] overflow-y-auto scrollbar-hide">
+          <div className="divide-y divide-gray-100 max-h-[600px] overflow-y-auto">
             {filteredCustomers.length === 0 ? (
               <div className="p-8 text-center text-gray-400">
                 {searchTerm ? "No customers match your search" : "No customers found"}
@@ -331,7 +376,7 @@ export default function CustomerPage() {
                       <div className="flex-1 text-start">
                         <div className="flex items-center gap-3">
                           <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center">
-                            <span className="text-blue-600 font-semibold">{c.name.charAt(0).toUpperCase()}</span>
+                            <span className="text-blue-600 font-semibold">{c.name?.charAt(0).toUpperCase() || '?'}</span>
                           </div>
                           <div>
                             <h3 className="font-semibold text-gray-800">{c.name}</h3>

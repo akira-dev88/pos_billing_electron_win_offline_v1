@@ -41,7 +41,8 @@ export default function PurchasePage() {
     try {
       setError(null);
       const [p, s] = await Promise.all([getProducts(), getSuppliers()]);
-
+      console.log("Products after extraction:", p);
+      console.log("Suppliers after extraction:", s);
       setProducts(Array.isArray(p) ? p : []);
       setSuppliers(Array.isArray(s) ? s : []);
     } catch (e) {
@@ -96,43 +97,62 @@ export default function PurchasePage() {
 
   // 🚀 Submit
   const handleSubmit = async () => {
-    const validItems = items.filter((i) => i.product_uuid && i.quantity > 0);
+  const validItems = items.filter((i) => i.product_uuid && i.quantity > 0);
 
-    if (!supplierId) {
-      setError("Please select a supplier");
-      return;
-    }
+  console.log("🔹 supplierId:", supplierId);
+  console.log("🔹 validItems:", validItems);
 
-    if (validItems.length === 0) {
-      setError("Please add at least one valid item");
-      return;
-    }
+  if (!supplierId) {
+    setError("Please select a supplier");
+    return;
+  }
+  if (validItems.length === 0) {
+    setError("Please add at least one valid item");
+    return;
+  }
 
-    setError(null);
-    setLoading(true);
+  setError(null);
+  setLoading(true);
 
-    try {
-      await createPurchase({
-        supplier_uuid: supplierId,
-        items: validItems,
-      });
-
-      setSuccess("Purchase saved successfully!");
-
-      // Reset form after 2 seconds
-      setTimeout(() => {
-        setItems([]);
-        setSupplierId("");
-        addItem();
-        setSuccess(null);
-      }, 2000);
-    } catch (e) {
-      console.error("Purchase error:", e);
-      setError("Failed to save purchase. Please try again.");
-    } finally {
-      setLoading(false);
-    }
+  const payload = {
+    supplier_uuid: supplierId,
+    items: validItems,
   };
+  console.log("📤 Sending payload:", payload);
+
+  try {
+    // TEMPORARY: use direct fetch (same as curl)
+    const token = localStorage.getItem('token');
+    const response = await fetch('http://127.0.0.1:3000/api/purchases', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`,
+      },
+      body: JSON.stringify(payload),
+    });
+    const result = await response.json();
+    console.log("✅ Direct fetch result:", result);
+
+    if (!response.ok) {
+      throw new Error(result.error || `HTTP ${response.status}`);
+    }
+
+    setSuccess("Purchase saved successfully!");
+    // Reset form after 2 seconds
+    setTimeout(() => {
+      setItems([]);
+      setSupplierId("");
+      addItem();
+      setSuccess(null);
+    }, 2000);
+  } catch (err: any) {
+    console.error("❌ Purchase error:", err);
+    setError(err.message || "Failed to save purchase. Please try again.");
+  } finally {
+    setLoading(false);
+  }
+};
 
   // Calculate item count
   const totalItems = items.filter((i) => i.product_uuid).length;

@@ -2,71 +2,115 @@ import { createContext, useContext, useEffect, useState } from "react";
 import { apiGet } from "../renderer/services/api";
 
 type User = {
+  user_uuid?: string;
   name: string;
   role: "owner" | "manager" | "cashier";
   email?: string;
 };
 
-const AuthContext = createContext<any>(null);
+interface AuthContextType {
+  user: User | null;
+  token: string | null;
+  loading: boolean;
+  login: (token: string, user: User) => void;
+  logout: () => void;
+}
 
-export function AuthProvider({ children }: any) {
+const AuthContext = createContext<AuthContextType | null>(null);
+
+export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
+  const [token, setToken] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
   // 🔥 INIT AUTH (runs once on app load)
   useEffect(() => {
     const init = async () => {
-      const token = localStorage.getItem("token");
+      const storedToken = localStorage.getItem("token");
+      const storedUser = localStorage.getItem("user");
 
-      if (!token) {
+      if (!storedToken || !storedUser) {
         setUser(null);
+        setToken(null);
         setLoading(false);
         return;
       }
 
+      // Set token first
+      setToken(storedToken);
+
       try {
-        const res = await apiGet("/me");
-
-        // ✅ FIX: correct data extraction
-        const userData = res?.data?.user;
-
-        if (!userData) {
-          throw new Error("Invalid user response");
+        // Try to verify token with backend
+        const res = await apiGet("/auth/me"); // Make sure this endpoint exists
+        
+        // Extract user data from response
+        const userData = res?.data?.user || res?.user;
+        
+        if (userData) {
+          setUser(userData);
+          // Update stored user in case it changed
+          localStorage.setItem("user", JSON.stringify(userData));
+        } else {
+          // If verification fails but we have stored user, use it
+          setUser(JSON.parse(storedUser));
         }
-
-        setUser(userData);
       } catch (e) {
-        console.error("Auth failed", e);
-
-        // ❌ Token invalid → force logout
-        localStorage.removeItem("token");
-        setUser(null);
+        console.error("Auth verification failed", e);
+        
+        // If token verification fails but we have stored user, still use it
+        // This prevents logout on network errors
+        try {
+          const parsedUser = JSON.parse(storedUser);
+          setUser(parsedUser);
+        } catch (error) {
+          // Invalid stored user, clear everything
+          localStorage.removeItem("token");
+          localStorage.removeItem("user");
+          setUser(null);
+          setToken(null);
+        }
+      } finally {
+        setLoading(false);
       }
-
-      setLoading(false);
     };
 
     init();
   }, []);
 
-  // ✅ LOGIN
-  const login = (token: string, user: User) => {
-    localStorage.setItem("token", token);
-    setUser(user);
+  // ✅ LOGIN - Store both token and user
+  const login = (newToken: string, newUser: User) => {
+    setToken(newToken);
+    setUser(newUser);
+    
+    // Store in localStorage for persistence
+    localStorage.setItem("token", newToken);
+    localStorage.setItem("user", JSON.stringify(newUser));
   };
 
-  // ✅ LOGOUT
+  // ✅ LOGOUT - Clear everything
   const logout = () => {
-    localStorage.removeItem("token");
+    setToken(null);
     setUser(null);
+    
+    // Clear localStorage
+    localStorage.removeItem("token");
+    localStorage.removeItem("user");
+    
+    // Navigate to login
     window.location.href = "/login";
   };
 
   return (
-    <AuthContext.Provider value={{ user, loading, login, logout }}>
+    <AuthContext.Provider value={{ user, token, loading, login, logout }}>
       {children}
     </AuthContext.Provider>
   );
 }
 
-export const useAuth = () => useContext(AuthContext);
+export const useAuth = () => {
+  const context = useContext(AuthContext);
+  if (!context) {
+    throw new Error("useAuth must be used within an AuthProvider");
+  }
+  return context;
+};

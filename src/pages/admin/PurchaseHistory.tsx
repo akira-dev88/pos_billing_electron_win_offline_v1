@@ -25,11 +25,30 @@ export default function PurchaseHistory() {
 
   const load = async () => {
     try {
+      setLoading(true);
       setError(null);
-      const data = await getPurchases();
-      setPurchases(Array.isArray(data) ? data : []);
+      const response = await getPurchases();
+      console.log("📊 Purchases API Response:", response);
+      
+      // Handle different response structures
+      let purchasesData = [];
+      if (Array.isArray(response)) {
+        purchasesData = response;
+      } else if (response.data && Array.isArray(response.data)) {
+        purchasesData = response.data;
+      } else if (response.success && response.data && Array.isArray(response.data)) {
+        purchasesData = response.data;
+      } else if (response.purchases && Array.isArray(response.purchases)) {
+        purchasesData = response.purchases;
+      } else {
+        console.warn("Unexpected purchases response structure:", response);
+        purchasesData = [];
+      }
+      
+      console.log("📊 Processed purchases data:", purchasesData);
+      setPurchases(purchasesData);
     } catch (e) {
-      console.error(e);
+      console.error("Error loading purchases:", e);
       setError("Failed to load purchase history");
       setPurchases([]);
     } finally {
@@ -41,6 +60,23 @@ export default function PurchaseHistory() {
   const totalPurchases = purchases.length;
   const totalSpent = purchases.reduce((sum, p) => sum + (Number(p.total) || 0), 0);
   const averagePurchase = totalPurchases > 0 ? totalSpent / totalPurchases : 0;
+
+  // Helper function to safely format numbers
+  const formatNumber = (value: any) => {
+    const num = Number(value);
+    return isNaN(num) ? 0 : num;
+  };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-96">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-purple-500 mx-auto mb-4"></div>
+          <p className="text-white">Loading purchases...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-3">
@@ -54,12 +90,15 @@ export default function PurchaseHistory() {
             Track and manage all your purchase orders
           </p>
         </div>
-        <div className="bg-gradient-to-br from-purple-500 to-purple-600 rounded-xl px-4 py-2 text-white">
+        <button
+          onClick={load}
+          className="bg-gradient-to-br from-purple-500 to-purple-600 rounded-xl px-4 py-2 text-white hover:shadow-lg transition-all"
+        >
           <div className="flex items-center gap-2">
             <IonIcon icon={cartOutline} className="text-xl" />
-            <span className="font-semibold">History</span>
+            <span className="font-semibold">Refresh</span>
           </div>
-        </div>
+        </button>
       </div>
 
       {/* Error Alert */}
@@ -98,7 +137,7 @@ export default function PurchaseHistory() {
           <div className="flex justify-between items-start">
             <div className="text-start">
               <p className="text-green-100 text-sm">Total Spent</p>
-              <p className="text-3xl font-bold mt-1">₹{totalSpent.toLocaleString()}</p>
+              <p className="text-3xl font-bold mt-1">₹{formatNumber(totalSpent).toLocaleString()}</p>
             </div>
             <div className="bg-white/20 p-2 rounded-lg">
               <IonIcon icon={cashOutline} className="text-2xl" />
@@ -110,7 +149,7 @@ export default function PurchaseHistory() {
           <div className="flex justify-between items-start">
             <div className="text-start">
               <p className="text-purple-100 text-sm">Average Purchase</p>
-              <p className="text-3xl font-bold mt-1">₹{averagePurchase.toFixed(0)}</p>
+              <p className="text-3xl font-bold mt-1">₹{formatNumber(averagePurchase).toFixed(0)}</p>
             </div>
             <div className="bg-white/20 p-2 rounded-lg">
               <IonIcon icon={documentTextOutline} className="text-2xl" />
@@ -127,6 +166,9 @@ export default function PurchaseHistory() {
             <h2 className="text-white font-semibold text-lg">
               Purchase Orders
             </h2>
+            <span className="ml-auto text-gray-400 text-sm">
+              {purchases.length} records
+            </span>
           </div>
         </div>
 
@@ -152,16 +194,7 @@ export default function PurchaseHistory() {
               </tr>
             </thead>
             <tbody>
-              {loading ? (
-                <tr>
-                  <td colSpan={5} className="text-center p-12">
-                    <div className="flex flex-col items-center gap-3">
-                      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
-                      <p className="text-gray-500">Loading purchases...</p>
-                    </div>
-                  </td>
-                </tr>
-              ) : purchases.length === 0 ? (
+              {purchases.length === 0 ? (
                 <tr>
                   <td colSpan={5} className="text-center p-12">
                     <div className="flex flex-col items-center gap-2">
@@ -176,18 +209,20 @@ export default function PurchaseHistory() {
               ) : (
                 purchases.map((purchase) => (
                   <tr
-                    key={purchase.purchase_uuid}
+                    key={purchase.purchase_uuid || purchase.id}
                     onClick={() => setSelected(purchase)}
                     className="border-b border-gray-100 hover:bg-gray-50 transition-all cursor-pointer"
                   >
                     <td className="p-4">
                       <div className="flex items-center gap-2">
                         <div className="w-8 h-8 bg-gradient-to-br from-purple-500 to-purple-600 rounded-full flex items-center justify-center text-white text-xs font-semibold">
-                          {purchase.supplier?.name?.charAt(0).toUpperCase() || "W"}
+                          {purchase.supplier?.name?.charAt(0).toUpperCase() || 
+                           purchase.supplier_name?.charAt(0).toUpperCase() || 
+                           "W"}
                         </div>
                         <div>
                           <div className="font-medium text-gray-800">
-                            {purchase.supplier?.name || "Walk-in Supplier"}
+                            {purchase.supplier?.name || purchase.supplier_name || "Walk-in Supplier"}
                           </div>
                           {purchase.supplier?.phone && (
                             <div className="text-xs text-gray-400">
@@ -201,26 +236,26 @@ export default function PurchaseHistory() {
                       <div className="text-sm text-gray-600">
                         {purchase.items?.length || 0} item(s)
                       </div>
-                      <div className="text-xs text-gray-400">
+                      <div className="text-xs text-gray-400 truncate max-w-[200px]">
                         {purchase.items?.slice(0, 2).map((item: any) => 
-                          item.product?.name
+                          item.product?.name || item.name
                         ).join(", ")}
                         {purchase.items?.length > 2 && "..."}
                       </div>
                     </td>
                     <td className="p-4 text-right">
                       <span className="font-semibold text-green-600">
-                        ₹{Number(purchase.total).toLocaleString()}
+                        ₹{formatNumber(purchase.total).toLocaleString()}
                       </span>
                     </td>
                     <td className="p-4">
                       <div className="flex items-center gap-1 text-sm text-gray-600">
                         <IonIcon icon={calendarOutline} className="text-xs" />
-                        <span>{new Date(purchase.created_at).toLocaleDateString()}</span>
+                        <span>{purchase.created_at ? new Date(purchase.created_at).toLocaleDateString() : 'N/A'}</span>
                       </div>
                       <div className="flex items-center gap-1 text-xs text-gray-400 mt-1">
                         <IonIcon icon={timeOutline} className="text-xs" />
-                        <span>{new Date(purchase.created_at).toLocaleTimeString()}</span>
+                        <span>{purchase.created_at ? new Date(purchase.created_at).toLocaleTimeString() : 'N/A'}</span>
                       </div>
                     </td>
                     <td className="p-4 text-center">
@@ -250,7 +285,7 @@ export default function PurchaseHistory() {
                     <h2 className="text-2xl font-bold">Purchase Details</h2>
                   </div>
                   <p className="text-gray-300 text-sm">
-                    Order #{selected.purchase_uuid?.slice(0, 8).toUpperCase()}
+                    Order #{selected.purchase_uuid?.slice(0, 8).toUpperCase() || 'N/A'}
                   </p>
                 </div>
                 <button
@@ -274,7 +309,7 @@ export default function PurchaseHistory() {
                   <div className="flex justify-between">
                     <span className="text-gray-500">Name:</span>
                     <span className="font-medium text-gray-800">
-                      {selected.supplier?.name || "Walk-in Supplier"}
+                      {selected.supplier?.name || selected.supplier_name || "Walk-in Supplier"}
                     </span>
                   </div>
                   {selected.supplier?.phone && (
@@ -302,7 +337,7 @@ export default function PurchaseHistory() {
                   <div className="flex justify-between">
                     <span className="text-gray-500">Date:</span>
                     <span className="text-gray-800">
-                      {new Date(selected.created_at).toLocaleString()}
+                      {selected.created_at ? new Date(selected.created_at).toLocaleString() : 'N/A'}
                     </span>
                   </div>
                   <div className="flex justify-between">
@@ -325,19 +360,25 @@ export default function PurchaseHistory() {
                     <span className="text-right">Cost Price</span>
                   </div>
                   <div className="space-y-2 max-h-[300px] overflow-y-auto">
-                    {selected.items?.map((item: any, i: number) => (
-                      <div key={i} className="grid grid-cols-3 text-sm">
-                        <span className="text-gray-800">
-                          {item.product?.name || "Unknown Product"}
-                        </span>
-                        <span className="text-center text-gray-600">
-                          x{item.quantity}
-                        </span>
-                        <span className="text-right text-green-600 font-medium">
-                          ₹{Number(item.cost_price).toFixed(2)}
-                        </span>
+                    {selected.items && selected.items.length > 0 ? (
+                      selected.items.map((item: any, i: number) => (
+                        <div key={i} className="grid grid-cols-3 text-sm">
+                          <span className="text-gray-800">
+                            {item.product?.name || item.name || "Unknown Product"}
+                          </span>
+                          <span className="text-center text-gray-600">
+                            x{item.quantity || 0}
+                          </span>
+                          <span className="text-right text-green-600 font-medium">
+                            ₹{formatNumber(item.cost_price).toFixed(2)}
+                          </span>
+                        </div>
+                      ))
+                    ) : (
+                      <div className="text-center text-gray-500 py-4">
+                        No items details available
                       </div>
-                    ))}
+                    )}
                   </div>
                 </div>
               </div>
@@ -351,7 +392,7 @@ export default function PurchaseHistory() {
                   </div>
                   <div className="text-right">
                     <p className="text-3xl font-bold text-green-600">
-                      ₹{Number(selected.total).toFixed(2)}
+                      ₹{formatNumber(selected.total).toFixed(2)}
                     </p>
                   </div>
                 </div>

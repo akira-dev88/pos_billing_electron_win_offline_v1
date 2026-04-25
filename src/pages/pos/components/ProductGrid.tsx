@@ -66,11 +66,15 @@ export default function ProductGrid({ products, loading, onAddItem }: ProductGri
         const colorClass = stockColor || colorClasses[colorIndex];
 
         return (
-          <div
-            key={p.product_uuid}
-            className={`border-2 ${colorClass} p-2 rounded-xl cursor-pointer h-40 flex flex-col justify-end items-start transition-all duration-200 font-inter`}
-            onClick={() => onAddItem(p)}
-          >
+          // In ProductGrid.tsx
+<div
+  key={p.product_uuid}
+  className={`border-2 ${colorClass} p-2 rounded-xl cursor-pointer h-40 flex flex-col justify-end items-start transition-all duration-200 font-inter`}
+  onClick={() => {
+    console.log('Product clicked:', p);
+    onAddItem(p);
+  }}
+>
             <div className="font-medium text-sm truncate w-full text-start">
               {p.name}
             </div>

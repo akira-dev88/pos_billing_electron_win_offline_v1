@@ -13,12 +13,9 @@ import {
   cashOutline,
   calendarOutline,
   documentTextOutline,
-  downloadOutline,
   trendingUpOutline,
   checkmarkCircleOutline,
   searchOutline,
-  pricetagOutline,
-  pricetag,
 } from "ionicons/icons";
 
 export default function Sales() {
@@ -35,8 +32,26 @@ export default function Sales() {
   const loadSales = async () => {
     try {
       setLoading(true);
-      const data = await getSales();
-      setSales(Array.isArray(data) ? data : []);
+      const response = await getSales();
+      console.log("📊 Sales API Response:", response);
+      
+      // Handle different response structures
+      let salesData = [];
+      if (Array.isArray(response)) {
+        salesData = response;
+      } else if (response.data && Array.isArray(response.data)) {
+        salesData = response.data;
+      } else if (response.success && response.data && Array.isArray(response.data)) {
+        salesData = response.data;
+      } else if (response.sales && Array.isArray(response.sales)) {
+        salesData = response.sales;
+      } else {
+        console.warn("Unexpected sales response structure:", response);
+        salesData = [];
+      }
+      
+      console.log("📊 Processed sales data:", salesData);
+      setSales(salesData);
     } catch (e) {
       console.error("Sales error:", e);
       setSales([]);
@@ -47,18 +62,13 @@ export default function Sales() {
 
   const handleView = async (sale: Sale) => {
     try {
+      console.log("🔍 Viewing sale:", sale);
       const invoice = await getInvoice(sale.sale_uuid);
-      console.log("=== FULL INVOICE DATA ===");
-      console.log(invoice);
-      console.log("=== SUMMARY OBJECT ===");
-      console.log(invoice?.summary);
-      console.log("=== ITEMS ARRAY ===");
-      console.log(invoice?.items);
-      console.log("=== GRAND TOTAL ===");
-      console.log(invoice?.grand_total);
+      console.log("📄 Full invoice data:", invoice);
       setInvoiceData(invoice);
     } catch (e) {
       console.error("Invoice error:", e);
+      alert("Failed to load invoice. Please try again.");
     }
   };
 
@@ -67,15 +77,16 @@ export default function Sales() {
     return isNaN(num) ? "0.00" : num.toFixed(2);
   };
 
-  // Calculate stats - Fixed version
+  // Calculate stats
   const totalSales = sales.reduce((sum, sale) => {
     const grandTotal = typeof sale.grand_total === 'string' ? parseFloat(sale.grand_total) : (sale.grand_total || 0);
     return sum + grandTotal;
   }, 0);
 
-  const averageSale = totalSales / (sales.length || 1);
+  const averageSale = sales.length > 0 ? totalSales / sales.length : 0;
 
   const todaySales = sales.filter(sale => {
+    if (!sale.created_at) return false;
     const saleDate = new Date(sale.created_at).toDateString();
     const today = new Date().toDateString();
     return saleDate === today;
@@ -86,7 +97,8 @@ export default function Sales() {
 
   // Filter sales
   const filteredSales = sales.filter((sale) => {
-    const matchesSearch = sale.invoice_number?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    const matchesSearch = !searchTerm || 
+      sale.invoice_number?.toLowerCase().includes(searchTerm.toLowerCase()) ||
       sale.customer?.name?.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesDate = !filterDate || sale.created_at?.startsWith(filterDate);
     return matchesSearch && matchesDate;
@@ -98,6 +110,7 @@ export default function Sales() {
       <div className="flex justify-between items-center font-inter">
         <div>
           <h1 className="text-3xl font-bold text-white">Sales</h1>
+          <p className="text-gray-300 text-sm mt-1">Manage and view all your sales transactions</p>
         </div>
         <button
           onClick={loadSales}
@@ -115,7 +128,7 @@ export default function Sales() {
           <div className="flex justify-between items-start">
             <div>
               <p className="text-blue-100 text-sm">Total Sales</p>
-              <p className="text-2xl font-bold mt-1">₹{totalSales.toLocaleString()}</p>
+              <p className="text-2xl font-bold mt-1">₹{format(totalSales)}</p>
             </div>
             <div className="bg-white/20 p-2 rounded-lg">
               <IonIcon icon={trendingUpOutline} className="text-2xl" />
@@ -127,7 +140,7 @@ export default function Sales() {
           <div className="flex justify-between items-start">
             <div>
               <p className="text-green-100 text-sm">Average Sale</p>
-              <p className="text-2xl font-bold mt-1">₹{averageSale.toLocaleString()}</p>
+              <p className="text-2xl font-bold mt-1">₹{format(averageSale)}</p>
             </div>
             <div className="bg-white/20 p-2 rounded-lg">
               <IonIcon icon={cashOutline} className="text-2xl" />
@@ -139,7 +152,7 @@ export default function Sales() {
           <div className="flex justify-between items-start">
             <div>
               <p className="text-purple-100 text-sm">Today's Sales</p>
-              <p className="text-2xl font-bold mt-1">₹{todaySales.toLocaleString()}</p>
+              <p className="text-2xl font-bold mt-1">₹{format(todaySales)}</p>
             </div>
             <div className="bg-white/20 p-2 rounded-lg">
               <IonIcon icon={calendarOutline} className="text-2xl" />
@@ -171,7 +184,7 @@ export default function Sales() {
             onChange={(e) => setSearchTerm(e.target.value)}
           />
           <div className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400">
-            <IonIcon icon={searchOutline} className="text-2xl" />
+            <IonIcon icon={searchOutline} className="text-xl" />
           </div>
         </div>
 
@@ -202,6 +215,7 @@ export default function Sales() {
                 <tr>
                   <td colSpan={6} className="text-center p-8">
                     <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500 mx-auto"></div>
+                    <p className="mt-2 text-gray-500">Loading sales...</p>
                   </td>
                 </tr>
               ) : filteredSales.length === 0 ? (
@@ -214,7 +228,7 @@ export default function Sales() {
                 filteredSales.map((sale) => (
                   <tr key={sale.sale_uuid} className="border-b border-gray-100 hover:bg-gray-50 transition-all group">
                     <td className="p-4">
-                      <div className="font-medium text-gray-800">{sale.invoice_number}</div>
+                      <div className="font-medium text-gray-800">{sale.invoice_number || "N/A"}</div>
                       <div className="text-xs text-gray-400 font-mono mt-0.5">
                         {sale.sale_uuid?.slice(0, 8)}...
                       </div>
@@ -231,8 +245,12 @@ export default function Sales() {
                       </span>
                     </td>
                     <td className="p-4">
-                      <div className="text-gray-600">{new Date(sale.created_at).toLocaleDateString()}</div>
-                      <div className="text-xs text-gray-400">{new Date(sale.created_at).toLocaleTimeString()}</div>
+                      <div className="text-gray-600">
+                        {sale.created_at ? new Date(sale.created_at).toLocaleDateString() : "N/A"}
+                      </div>
+                      <div className="text-xs text-gray-400">
+                        {sale.created_at ? new Date(sale.created_at).toLocaleTimeString() : ""}
+                      </div>
                     </td>
                     <td className="p-4 text-center">
                       <span className="inline-flex items-center gap-1 px-2 py-1 bg-green-100 text-green-700 text-xs rounded-full">
@@ -261,7 +279,7 @@ export default function Sales() {
       {/* INVOICE MODAL */}
       {invoiceData && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md max-h-[90vh] overflow-y-auto animate-fadeIn">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md max-h-[90vh] overflow-y-auto">
             {/* Modal Header */}
             <div className="sticky top-0 bg-white border-b border-gray-100 p-4 flex justify-between items-center">
               <h2 className="text-lg font-bold text-gray-800">Invoice Details</h2>
@@ -290,7 +308,7 @@ export default function Sales() {
                   GSTIN: {invoiceData.shop?.gstin || "33ABCDE1234F1Z5"}
                 </div>
                 <div className="text-xs text-gray-400 mt-2">
-                  Date: {new Date(invoiceData.created_at || Date.now()).toLocaleString()}
+                  Date: {invoiceData.created_at ? new Date(invoiceData.created_at).toLocaleString() : new Date().toLocaleString()}
                 </div>
               </div>
 
@@ -303,13 +321,10 @@ export default function Sales() {
                   <div className="text-gray-600">
                     {invoiceData.customer?.name || invoiceData.customer_name || "Walk-in Customer"}
                   </div>
-                  {(invoiceData.customer?.mobile || invoiceData.customer_name) && (
-                    <div className="text-xs text-gray-400">{invoiceData.customer?.mobile || invoiceData.customer_name}</div>
-                  )}
                 </div>
               )}
 
-              {/* Items - Check multiple possible data structures */}
+              {/* Items */}
               <div className="space-y-2 mb-3">
                 <div className="font-semibold text-gray-700 text-sm">Items:</div>
                 {(invoiceData.items?.length || invoiceData.cart?.items?.length) ? (
@@ -327,74 +342,35 @@ export default function Sales() {
                     </div>
                   ))
                 ) : (
-                  <div className="text-center text-sm text-gray-400">No items</div>
+                  <div className="text-center text-sm text-gray-400">No items found</div>
                 )}
               </div>
 
               <hr className="my-3 border-gray-200" />
 
-              {/* Summary - Try multiple possible field names */}
+              {/* Summary */}
               <div className="space-y-1 text-sm">
                 <div className="flex justify-between">
                   <span className="text-gray-600">Subtotal</span>
                   <span className="text-gray-800">
-                    ₹{format(
-                      invoiceData.summary?.total ||
-                      invoiceData.subtotal ||
-                      invoiceData.total ||
-                      0
-                    )}
+                    ₹{format(invoiceData.summary?.total || invoiceData.subtotal || invoiceData.total || 0)}
                   </span>
                 </div>
 
                 <div className="flex justify-between">
-                  <span className="text-gray-600">GST (18%)</span>
+                  <span className="text-gray-600">Tax (GST)</span>
                   <span className="text-gray-800">
-                    ₹{format(
-                      invoiceData.summary?.tax ||
-                      invoiceData.tax ||
-                      invoiceData.gst ||
-                      ((invoiceData.summary?.grand_total || invoiceData.grand_total || 0) * 0.18)
-                    )}
+                    ₹{format(invoiceData.summary?.tax || invoiceData.tax || invoiceData.gst || 0)}
                   </span>
                 </div>
 
                 <div className="flex justify-between pt-2 border-t border-gray-200">
                   <span className="font-bold text-gray-800">Grand Total</span>
                   <span className="font-bold text-green-600 text-lg">
-                    ₹{format(
-                      invoiceData.summary?.grand_total ||
-                      invoiceData.grand_total ||
-                      invoiceData.total_amount ||
-                      invoiceData.amount ||
-                      0
-                    )}
+                    ₹{format(invoiceData.summary?.grand_total || invoiceData.grand_total || invoiceData.total_amount || 0)}
                   </span>
                 </div>
               </div>
-
-              {/* Payment Info if available */}
-              {(invoiceData.payments?.length > 0 || invoiceData.payment_method) && (
-                <>
-                  <hr className="my-3 border-gray-200" />
-                  <div className="space-y-1 text-sm">
-                    <div className="font-semibold text-gray-700">Payment:</div>
-                    {invoiceData.payments?.length > 0 ? (
-                      invoiceData.payments.map((payment: any, i: number) => (
-                        <div key={i} className="flex justify-between text-xs">
-                          <span className="text-gray-600 capitalize">{payment.method}</span>
-                          <span className="text-gray-800">₹{format(payment.amount)}</span>
-                        </div>
-                      ))
-                    ) : (
-                      <div className="flex justify-between text-xs">
-                        <span className="text-gray-600 capitalize">{invoiceData.payment_method || "Cash"}</span>
-                        <span className="text-gray-800">₹{format(invoiceData.grand_total || invoiceData.total_amount)}</span>
-                      </div>
-                    )}
-                  </div>
-                </>
-              )}
 
               <hr className="my-3 border-gray-200" />
 
@@ -403,11 +379,6 @@ export default function Sales() {
                 <div className="text-sm text-gray-600">Thank you for your purchase! 🙏</div>
                 <div className="text-xs text-gray-400 mt-1">Visit again!</div>
               </div>
-            </div>
-
-            {/* DEBUG: Remove after fixing */}
-            <div className="text-xs bg-gray-100 p-2 rounded mb-2 overflow-auto max-h-32">
-              <pre>{JSON.stringify(invoiceData, null, 2)}</pre>
             </div>
 
             {/* Modal Footer Buttons */}

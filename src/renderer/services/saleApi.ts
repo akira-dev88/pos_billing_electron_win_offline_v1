@@ -1,71 +1,49 @@
 import { apiGet, apiPost } from "./api";
 
 export interface Sale {
-  customer: any;
-  customer: any;
-  customer: any;
-  customer: any;
   sale_uuid: string;
   invoice_number: string;
-  grand_total: string;
+  grand_total: number | string;
   created_at: string;
-}
-
-export interface InvoiceItem {
-  quantity: number;
-  quantity: number;
-  price(price: any): import("react").ReactNode;
-  name: string;
-  qty: number;
-  total: number;
+  customer?: any;
 }
 
 export interface Invoice {
-  payment_method: boolean;
-  amount: number;
-  gst: number;
-  cart: any;
+  total_amount: any;
+  gst: any;
+  customer_name: any;
   cart: any;
   customer_name: any;
-  customer_name: any;
-  payments: any;
-  payments: boolean;
-  payments: any;
-  total_amount: number;
-  tax: number;
-  subtotal: number;
-  total: number;
-  created_at: number;
-  sale_uuid: any;
-  grand_total: number;
-  grand_total: number;
-  grand_total: number;
-  customer: any;
-  customer: any;
-  customer: any;
-  customer: any;
+  cart: any;
   invoice_number?: string;
-  shop?: {
-    name: string;
-    address: string;
-    gstin: string;
-  };
-  items?: InvoiceItem[];
-  summary?: {
-    total: number;
-    tax: number;
-    grand_total: number;
-  };
+  sale_uuid?: string;
+  created_at?: string;
+  grand_total?: number;
+  total?: number;
+  tax?: number;
+  subtotal?: number;
+  customer?: any;
+  items?: any[];
+  payments?: any[];
+  shop?: any;
+  summary?: any;
 }
 
 export async function getSales(): Promise<Sale[]> {
-  return await apiGet("/sales");
+  const response: any = await apiGet("/sales");
+  // Expected response: { success: true, data: Sale[] }
+  if (response && response.success && Array.isArray(response.data)) {
+    return response.data;
+  }
+  if (Array.isArray(response)) {
+    return response;
+  }
+  return [];
 }
 
-export async function getInvoice(
-  saleUUID: string
-): Promise<Invoice> {
-  return await apiGet(`/sales/${saleUUID}/invoice`);
+export async function getInvoice(saleUUID: string): Promise<Invoice> {
+  const response: any = await apiGet(`/sales/${saleUUID}/invoice`);
+  return response.data || response;
 }
 
 export async function checkoutCart(

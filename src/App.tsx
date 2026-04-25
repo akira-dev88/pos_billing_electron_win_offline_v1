@@ -20,12 +20,15 @@ import CustomerPage from "./pages/admin/Customer";
 
 import AuthGate from "./context/AuthGate";
 import ProtectedRoute from "./context/ProtectedRoute";
+import SignupPage from "./pages/SignUpPage";
+import { ScrollRestoration } from "react-router-dom";
 
 export default function App() {
   return (
     <Routes>
       {/* LOGIN */}
       <Route path="/login" element={<LoginPage />} />
+      <Route path="/signup" element={<SignupPage />} />
 
       {/* ROOT */}
       <Route

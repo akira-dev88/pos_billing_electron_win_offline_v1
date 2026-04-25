@@ -4,6 +4,7 @@ import POSPage from "../pages/pos/POSPage";
 import Dashboard from "../pages/admin/Dashboard";
 import LoginPage from "../pages/LoginPage";
 import AuthGate from "../context/AuthGate";
+import SignupPage from "../pages/SignUpPage";
 
 export default function AppRouter() {
   return (
@@ -12,6 +13,7 @@ export default function AppRouter() {
 
         {/* PUBLIC */}
         <Route path="/login" element={<LoginPage />} />
+        <Route path="/signup" element={<SignupPage />} />
 
         {/* PROTECTED */}
         <Route

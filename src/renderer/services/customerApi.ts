@@ -11,39 +11,67 @@ export interface Customer {
 }
 
 export async function getCustomers() {
-  return await apiGet("/customers");
+  const response = await apiGet("/customers");
+  console.log("Raw customers API response:", response);
+  
+  // Extract the data array from the response
+  // Your API returns: { success: true, data: [...] }
+  if (response.success && response.data) {
+    return response.data;
+  }
+  
+  // If response already has data property
+  if (response.data && Array.isArray(response.data)) {
+    return response.data;
+  }
+  
+  // If response is already an array
+  if (Array.isArray(response)) {
+    return response;
+  }
+  
+  // Return empty array as fallback
+  console.warn("Unexpected customers response structure:", response);
+  return [];
 }
 
 export async function createCustomer(data: any) {
-  return await apiPost("/customers", data);
+  const response = await apiPost("/customers", data);
+  return response.data || response;
 }
 
 export async function getLedger(customer_uuid: string) {
-  return await apiGet(`/customers/${customer_uuid}/ledger`);
+  const response = await apiGet(`/customers/${customer_uuid}/ledger`);
+  return response.data || response;
 }
 
 export async function addCustomerPayment(
   customer_uuid: string,
   data: { amount: number; method: string }
 ) {
-  return await apiPost(`/customers/${customer_uuid}/payments`, data);
+  const response = await apiPost(`/customers/${customer_uuid}/payments`, data);
+  return response.data || response;
 }
 
 // ✏️ update
 export async function updateCustomer(uuid: string, data: Partial<Customer>) {
-  return await apiPut(`/customers/${uuid}`, data);
+  const response = await apiPut(`/customers/${uuid}`, data);
+  return response.data || response;
 }
 
 // ❌ delete
 export async function deleteCustomer(uuid: string) {
-  return await apiDelete(`/customers/${uuid}`);
+  const response = await apiDelete(`/customers/${uuid}`);
+  return response.data || response;
 }
 
 // 📊 ledger
 export async function getCustomerLedger(uuid: string) {
-  return await apiGet(`/customers/${uuid}/ledger`);
+  const response = await apiGet(`/customers/${uuid}/ledger`);
+  return response.data || response;
 }
 
 export async function getCustomerSummary() {
-  return await apiGet("/customers/summary");
+  const response = await apiGet("/customers/summary");
+  return response.data || response;
 }
